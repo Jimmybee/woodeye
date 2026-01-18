@@ -101,7 +101,17 @@
           {/if}
         </span>
         <span class="worktree-name">{selectedWorktree.name}</span>
-        <span class="branch-badge">{selectedWorktree.head.branch ?? "detached"}</span>
+        <span class="branch-badge">
+          {selectedWorktree.head.branch ?? "detached"}
+          {#if selectedWorktree.head.upstream}
+            {#if selectedWorktree.head.upstream.ahead > 0 || selectedWorktree.head.upstream.behind > 0}
+              <span class="sync-indicator">
+                {#if selectedWorktree.head.upstream.ahead > 0}↑{selectedWorktree.head.upstream.ahead}{/if}
+                {#if selectedWorktree.head.upstream.behind > 0}↓{selectedWorktree.head.upstream.behind}{/if}
+              </span>
+            {/if}
+          {/if}
+        </span>
         {#if hasChanges}
           <span class="change-indicator" title="Has uncommitted changes"></span>
         {/if}
@@ -159,7 +169,18 @@
               </span>
               <div class="worktree-info">
                 <span class="option-name">{worktree.name}</span>
-                <span class="option-branch">{worktree.head.branch ?? "detached"}</span>
+                <div class="option-branch-line">
+                  <span class="option-branch">{worktree.head.branch ?? "detached"}</span>
+                  {#if worktree.head.upstream}
+                    <span class="option-upstream">→ {worktree.head.upstream.remote_branch}</span>
+                    {#if worktree.head.upstream.ahead > 0 || worktree.head.upstream.behind > 0}
+                      <span class="option-sync">
+                        {#if worktree.head.upstream.ahead > 0}↑{worktree.head.upstream.ahead}{/if}
+                        {#if worktree.head.upstream.behind > 0}↓{worktree.head.upstream.behind}{/if}
+                      </span>
+                    {/if}
+                  {/if}
+                </div>
               </div>
               <div class="worktree-meta">
                 {#if wtHasChanges}
@@ -250,6 +271,13 @@
     color: var(--color-primary);
     border-radius: 3px;
     flex-shrink: 0;
+  }
+
+  .sync-indicator {
+    margin-left: 4px;
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: var(--color-info);
   }
 
   .change-indicator {
@@ -389,6 +417,25 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .option-branch-line {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+
+  .option-upstream {
+    font-size: 0.65rem;
+    color: var(--color-text-muted);
+    opacity: 0.8;
+  }
+
+  .option-sync {
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: var(--color-info);
   }
 
   .worktree-meta {

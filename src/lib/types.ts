@@ -12,6 +12,13 @@ export interface HeadInfo {
   branch: string | null;
   commit_sha: string;
   commit_message: string;
+  upstream: UpstreamInfo | null;
+}
+
+export interface UpstreamInfo {
+  remote_branch: string;
+  ahead: number;
+  behind: number;
 }
 
 export interface WorktreeStatus {

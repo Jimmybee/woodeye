@@ -17,6 +17,14 @@ pub struct HeadInfo {
     pub branch: Option<String>,
     pub commit_sha: String,
     pub commit_message: String,
+    pub upstream: Option<UpstreamInfo>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpstreamInfo {
+    pub remote_branch: String,
+    pub ahead: u32,
+    pub behind: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

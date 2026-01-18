@@ -24,6 +24,23 @@
   <div class="branch">
     {#if worktree.head.branch}
       <span class="branch-name">{worktree.head.branch}</span>
+      {#if worktree.head.upstream}
+        <span class="tracking-arrow">→</span>
+        <span class="upstream-name">{worktree.head.upstream.remote_branch}</span>
+        <span class="sync-status">
+          {#if worktree.head.upstream.ahead > 0 && worktree.head.upstream.behind > 0}
+            <span class="diverged" title="Branch has diverged">↑{worktree.head.upstream.ahead} ↓{worktree.head.upstream.behind}</span>
+          {:else if worktree.head.upstream.ahead > 0}
+            <span class="ahead" title="Ahead of upstream">↑{worktree.head.upstream.ahead}</span>
+          {:else if worktree.head.upstream.behind > 0}
+            <span class="behind" title="Behind upstream">↓{worktree.head.upstream.behind}</span>
+          {:else}
+            <span class="synced" title="Up to date with upstream">✓</span>
+          {/if}
+        </span>
+      {:else}
+        <span class="no-upstream" title="No upstream tracking branch">⚠</span>
+      {/if}
     {:else}
       <span class="detached">detached</span>
     {/if}
@@ -146,6 +163,44 @@
     background: var(--color-bg);
     padding: 0.1rem 0.3rem;
     border-radius: 3px;
+  }
+
+  .tracking-arrow {
+    color: var(--color-text-muted);
+    font-size: 0.8rem;
+  }
+
+  .upstream-name {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+  }
+
+  .sync-status {
+    font-family: ui-monospace, monospace;
+    font-size: 0.75rem;
+    margin-left: 0.25rem;
+  }
+
+  .ahead {
+    color: var(--color-info);
+  }
+
+  .behind {
+    color: var(--color-warning);
+  }
+
+  .diverged {
+    color: var(--color-error);
+  }
+
+  .synced {
+    color: var(--color-success);
+  }
+
+  .no-upstream {
+    color: var(--color-text-muted);
+    font-size: 0.75rem;
+    opacity: 0.6;
   }
 
   .commit-msg {

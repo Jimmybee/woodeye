@@ -1,6 +1,7 @@
 use crate::types::{
     BranchInfo, CommitDiff, CommitInfo, CreateWorktreeOptions, DiffHunk, DiffLine, DiffStats,
-    FileDiff, FileStatus, HeadInfo, PruneResult, Worktree, WorkingDiff, WorktreeStatus,
+    FileDiff, FileStatus, HeadInfo, PruneResult, UpstreamInfo, Worktree, WorkingDiff,
+    WorktreeStatus,
 };
 use rayon::prelude::*;
 use std::path::PathBuf;
@@ -21,6 +22,43 @@ fn run_git(path: &str, args: &[&str]) -> Result<String, String> {
     }
 
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
+/// Get upstream tracking info for the current branch
+/// Returns None if branch has no upstream or git command fails
+fn get_upstream_info(path_str: &str) -> Option<UpstreamInfo> {
+    // Get upstream branch name: git rev-parse --abbrev-ref @{upstream}
+    let remote_branch = run_git(path_str, &["rev-parse", "--abbrev-ref", "@{upstream}"]).ok()?;
+    let remote_branch = remote_branch.trim().to_string();
+
+    // Get ahead/behind counts: git rev-list --count --left-right @{upstream}...HEAD
+    let counts = run_git(
+        path_str,
+        &["rev-list", "--count", "--left-right", "@{upstream}...HEAD"],
+    )
+    .ok()
+    .map(|s| parse_ahead_behind(&s))
+    .unwrap_or((0, 0));
+
+    Some(UpstreamInfo {
+        remote_branch,
+        behind: counts.0,
+        ahead: counts.1,
+    })
+}
+
+/// Parse the output of "git rev-list --count --left-right"
+/// Output format: "behind\tahead" (tab-separated)
+fn parse_ahead_behind(output: &str) -> (u32, u32) {
+    let parts: Vec<&str> = output.trim().split('\t').collect();
+    if parts.len() == 2 {
+        (
+            parts[0].parse().unwrap_or(0),
+            parts[1].parse().unwrap_or(0),
+        )
+    } else {
+        (0, 0)
+    }
 }
 
 pub fn get_all_worktrees(repo_path: &str) -> Result<Vec<Worktree>, String> {
@@ -96,6 +134,13 @@ fn build_worktree_info(path: &PathBuf, is_main: bool) -> Result<Worktree, String
     // Frontend will fetch status lazily
     let status = None;
 
+    // Get upstream tracking info if we have a branch (not detached)
+    let upstream = if branch.is_some() {
+        get_upstream_info(&path_str)
+    } else {
+        None
+    };
+
     Ok(Worktree {
         path: path.clone(),
         name: path
@@ -108,6 +153,7 @@ fn build_worktree_info(path: &PathBuf, is_main: bool) -> Result<Worktree, String
             branch,
             commit_sha: short_sha,
             commit_message,
+            upstream,
         },
         status,
         last_commit_timestamp: timestamp,
