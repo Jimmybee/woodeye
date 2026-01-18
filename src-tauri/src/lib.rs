@@ -20,7 +20,8 @@ pub fn run() {
             commands::create_worktree,
             commands::delete_worktree,
             commands::prune_worktrees,
-            commands::list_branches
+            commands::list_branches,
+            commands::open_in_terminal
         ])
         .setup(|_app| {
             Ok(())

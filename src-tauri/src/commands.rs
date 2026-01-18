@@ -87,3 +87,18 @@ pub async fn list_branches(repo_path: String) -> Result<Vec<BranchInfo>, String>
         .await
         .map_err(|e| e.to_string())?
 }
+
+#[tauri::command]
+pub async fn open_in_terminal(path: String, terminal: String) -> Result<(), String> {
+    use std::process::Command;
+
+    let result = match terminal.as_str() {
+        "terminal" => Command::new("open").args(["-a", "Terminal", &path]).spawn(),
+        "warp" => Command::new("open").args(["-a", "Warp", &path]).spawn(),
+        "iterm" => Command::new("open").args(["-a", "iTerm", &path]).spawn(),
+        _ => return Err(format!("Unknown terminal: {}", terminal)),
+    };
+
+    result.map_err(|e| format!("Failed to open terminal: {}", e))?;
+    Ok(())
+}

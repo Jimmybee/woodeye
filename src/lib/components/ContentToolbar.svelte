@@ -1,11 +1,13 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { invoke } from "@tauri-apps/api/core";
   import { open } from "@tauri-apps/plugin-dialog";
   import WorktreeDropdown from "./WorktreeDropdown.svelte";
   import { getTheme, setTheme, type Theme } from "../store";
   import type { Worktree } from "../types";
 
   let theme: Theme = $state("system");
+  let terminalMenuOpen = $state(false);
 
   function getFolderName(path: string): string {
     if (!path) return "";
@@ -22,6 +24,20 @@
     theme = next;
     setTheme(next);
     applyTheme(next);
+  }
+
+  function toggleTerminalMenu() {
+    terminalMenuOpen = !terminalMenuOpen;
+  }
+
+  async function handleOpenTerminal(terminal: string) {
+    terminalMenuOpen = false;
+    if (!selectedWorktree) return;
+    try {
+      await invoke("open_in_terminal", { path: selectedWorktree.path, terminal });
+    } catch (e) {
+      console.error("Failed to open terminal:", e);
+    }
   }
 
   onMount(() => {
@@ -84,8 +100,6 @@
   </div>
 
   <div class="context-card repo-context" title={repoPath}>
-    <span class="context-label">Repository</span>
-    <div class="context-content">
       <svg class="context-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
       </svg>
@@ -103,25 +117,47 @@
           </svg>
         {/if}
       </button>
-    </div>
   </div>
 
   {#if worktrees.length > 0}
-    <div class="context-card worktree-context">
-      <span class="context-label">Worktree</span>
-      <WorktreeDropdown
-        {worktrees}
-        {selectedWorktree}
-        {onSelectWorktree}
-        {onCreateWorktree}
-        {onDeleteWorktree}
-        {onPruneWorktrees}
-        {loading}
-      />
-    </div>
+    <WorktreeDropdown
+      {worktrees}
+      {selectedWorktree}
+      {onSelectWorktree}
+      {onCreateWorktree}
+      {onDeleteWorktree}
+      {onPruneWorktrees}
+      {loading}
+    />
   {/if}
 
   <div class="toolbar-actions">
+    <div class="terminal-wrapper">
+      <button
+        class="terminal-btn"
+        onclick={toggleTerminalMenu}
+        disabled={!selectedWorktree}
+        title="Open in terminal"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="4 17 10 11 4 5"/>
+          <line x1="12" y1="19" x2="20" y2="19"/>
+        </svg>
+      </button>
+      {#if terminalMenuOpen}
+        <div class="terminal-menu">
+          <button class="terminal-option" onclick={() => handleOpenTerminal("terminal")}>
+            Terminal
+          </button>
+          <button class="terminal-option" onclick={() => handleOpenTerminal("warp")}>
+            Warp
+          </button>
+          <button class="terminal-option" onclick={() => handleOpenTerminal("iterm")}>
+            iTerm
+          </button>
+        </div>
+      {/if}
+    </div>
     <button
       class="theme-btn"
       onclick={cycleTheme}
@@ -185,27 +221,13 @@
 
   .context-card {
     display: flex;
-    flex-direction: column;
-    gap: 2px;
+    align-items: center;
+    gap: var(--space-sm);
     padding: var(--space-xs) var(--space-md);
     background: var(--color-bg);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
     min-width: 0;
-  }
-
-  .context-label {
-    font-size: 0.65rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--color-text-muted);
-  }
-
-  .context-content {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm);
   }
 
   .context-icon {
@@ -257,11 +279,6 @@
   .repo-context {
     flex-shrink: 0;
     max-width: 200px;
-  }
-
-  .worktree-context {
-    flex: 1;
-    min-width: 0;
   }
 
   .btn-spinner {
@@ -329,6 +346,64 @@
 
   .refresh-btn .spinning {
     animation: spin 0.8s linear infinite;
+  }
+
+  .terminal-wrapper {
+    position: relative;
+  }
+
+  .terminal-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg);
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+  }
+
+  .terminal-btn:hover:not(:disabled) {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+  }
+
+  .terminal-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .terminal-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+    z-index: 100;
+  }
+
+  .terminal-option {
+    padding: var(--space-sm) var(--space-md);
+    border: none;
+    background: transparent;
+    color: var(--color-text);
+    font-size: 0.85rem;
+    text-align: left;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color 0.15s;
+  }
+
+  .terminal-option:hover {
+    background: var(--color-bg);
   }
 
   @keyframes spin {
