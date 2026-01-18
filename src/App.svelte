@@ -520,16 +520,13 @@
     flex: 1;
     display: flex;
     overflow: hidden;
-    padding: var(--space-xl);
-    gap: var(--space-xl);
   }
 
   .commits-panel {
     width: 340px;
     min-width: 280px;
     background: var(--color-bg-card);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-md);
+    border-right: 1px solid var(--color-border);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -538,8 +535,6 @@
   .diff-panel {
     flex: 1;
     background: var(--color-bg-card);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-md);
     display: flex;
     flex-direction: column;
     overflow: hidden;
