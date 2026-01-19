@@ -1,5 +1,6 @@
 mod commands;
 mod git;
+mod menu;
 mod types;
 mod watcher;
 
@@ -21,9 +22,15 @@ pub fn run() {
             commands::delete_worktree,
             commands::prune_worktrees,
             commands::list_branches,
-            commands::open_in_terminal
+            commands::open_in_terminal,
+            commands::open_claude_in_terminal,
+            commands::set_theme_menu_state
         ])
-        .setup(|_app| {
+        .setup(|app| {
+            if let Err(e) = menu::build_menu(app) {
+                eprintln!("Failed to build menu: {}", e);
+            }
+            menu::setup_menu_events(app);
             Ok(())
         })
         .run(tauri::generate_context!())

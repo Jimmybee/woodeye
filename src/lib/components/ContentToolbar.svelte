@@ -1,29 +1,15 @@
 <script lang="ts">
-  import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { open } from "@tauri-apps/plugin-dialog";
   import WorktreeDropdown from "./WorktreeDropdown.svelte";
-  import { getTheme, setTheme, type Theme } from "../store";
   import type { Worktree } from "../types";
 
-  let theme: Theme = $state("system");
   let terminalMenuOpen = $state(false);
 
   function getFolderName(path: string): string {
     if (!path) return "";
     const segments = path.replace(/\/$/, "").split("/");
     return segments[segments.length - 1] || path;
-  }
-
-  function applyTheme(t: Theme) {
-    document.documentElement.setAttribute("data-theme", t);
-  }
-
-  function cycleTheme() {
-    const next: Theme = theme === "system" ? "light" : theme === "light" ? "dark" : "system";
-    theme = next;
-    setTheme(next);
-    applyTheme(next);
   }
 
   function toggleTerminalMenu() {
@@ -40,10 +26,14 @@
     }
   }
 
-  onMount(() => {
-    theme = getTheme();
-    applyTheme(theme);
-  });
+  async function handleOpenAgent() {
+    if (!selectedWorktree) return;
+    try {
+      await invoke("open_claude_in_terminal", { path: selectedWorktree.path });
+    } catch (e) {
+      console.error("Failed to open agent:", e);
+    }
+  }
 
   interface Props {
     repoPath: string;
@@ -159,25 +149,16 @@
       {/if}
     </div>
     <button
-      class="theme-btn"
-      onclick={cycleTheme}
-      title={theme === "system" ? "Theme: System" : theme === "light" ? "Theme: Light" : "Theme: Dark"}
+      class="agent-btn"
+      onclick={handleOpenAgent}
+      disabled={!selectedWorktree}
+      title="Open Claude agent"
     >
-      {#if theme === "system"}
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="4"/>
-          <path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
-        </svg>
-      {:else if theme === "light"}
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="5"/>
-          <path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
-        </svg>
-      {:else}
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-        </svg>
-      {/if}
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="8" r="4"/>
+        <path d="M6 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/>
+        <path d="M12 4V2m-4 3L7 3m10 2l1-2"/>
+      </svg>
     </button>
     <button
       class="refresh-btn"
@@ -297,8 +278,8 @@
     margin-left: auto;
   }
 
-  .theme-btn,
-  .refresh-btn {
+  .refresh-btn,
+  .agent-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -312,9 +293,14 @@
     transition: background-color 0.15s, color 0.15s, border-color 0.15s;
   }
 
-  .theme-btn:hover {
+  .agent-btn:hover:not(:disabled) {
     border-color: var(--color-primary);
     color: var(--color-primary);
+  }
+
+  .agent-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   .refresh-btn:hover:not(:disabled) {

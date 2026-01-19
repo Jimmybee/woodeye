@@ -1,4 +1,5 @@
 use crate::git;
+use crate::menu;
 use crate::types::{
     BranchInfo, CommitDiff, CommitInfo, CreateWorktreeOptions, PruneResult, WorkingDiff, Worktree,
     WorktreeStatus,
@@ -101,4 +102,30 @@ pub async fn open_in_terminal(path: String, terminal: String) -> Result<(), Stri
 
     result.map_err(|e| format!("Failed to open terminal: {}", e))?;
     Ok(())
+}
+
+#[tauri::command]
+pub async fn open_claude_in_terminal(path: String) -> Result<(), String> {
+    use std::process::Command;
+
+    // Use AppleScript to open Terminal and run claude
+    let script = format!(
+        r#"tell application "Terminal"
+            do script "cd '{}' && claude"
+            activate
+        end tell"#,
+        path.replace("'", "'\\''") // Escape single quotes
+    );
+
+    Command::new("osascript")
+        .args(["-e", &script])
+        .spawn()
+        .map_err(|e| format!("Failed to open terminal: {}", e))?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn set_theme_menu_state(app_handle: tauri::AppHandle, theme: String) -> Result<(), String> {
+    menu::update_theme_checkmarks(&app_handle, &theme)
 }

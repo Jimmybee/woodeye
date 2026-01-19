@@ -17,7 +17,7 @@
     CreateWorktreeOptions,
     PruneResult,
   } from "./lib/types";
-  import { getLastRepoPath, saveLastRepoPath } from "./lib/store";
+  import { getLastRepoPath, saveLastRepoPath, getTheme, setTheme, type Theme } from "./lib/store";
 
   const COMMITS_PER_PAGE = 10;
 
@@ -38,6 +38,7 @@
   let refreshing = $state(false);
   let hasExternalChanges = $state(false);
   let unlisten: UnlistenFn | null = null;
+  let unlistenTheme: UnlistenFn | null = null;
 
   // Working diff cache (keyed by worktree path)
   let workingDiffCache: Map<string, WorkingDiff> = $state(new Map());
@@ -123,6 +124,7 @@
     workingDiff = null;
     workingSelected = false;
     hasMoreCommits = true;
+    loadingDiff = true;  // Set loading immediately to prevent empty state flicker
 
     // Load commits and status in parallel
     const [, status] = await Promise.all([
@@ -138,10 +140,14 @@
       );
 
       // Auto-select working changes if dirty, otherwise first commit
+      // All state updates happen synchronously to prevent flicker
       if (!status.is_clean) {
-        await selectWorkingChanges();
+        workingSelected = true;
+        fetchWorkingDiff(worktree.path, false);
       } else if (commits.length > 0) {
         await selectCommit(commits[0]);
+      } else {
+        loadingDiff = false;
       }
     }
   }
@@ -200,9 +206,15 @@
     workingSelected = true;
     selectedCommit = null;
     commitDiff = null;
-    workingDiff = null;
 
-    if (!selectedWorktree) return;
+    if (!selectedWorktree) {
+      workingDiff = null;
+      return;
+    }
+
+    // Set loading before clearing diff to show spinner instead of empty state
+    loadingDiff = true;
+    workingDiff = null;
 
     await fetchWorkingDiff(selectedWorktree.path, false);
   }
@@ -214,18 +226,22 @@
       const cached = workingDiffCache.get(worktreePath);
       if (cached) {
         workingDiff = cached;
+        loadingDiff = false;
         return;
       }
     }
 
-    loadingDiff = true;
+    // Only show loading spinner if we don't already have content
+    // This prevents flicker when refreshing due to file watcher
+    if (!workingDiff) {
+      loadingDiff = true;
+    }
+
     try {
       const result = await invoke<WorkingDiff>("get_working_diff", { worktreePath });
-      // Guard against worktree change during async operation
       if (selectedWorktree?.path === worktreePath) {
         workingDiff = result;
         workingDiffCache.set(worktreePath, result);
-        // Trigger reactivity by creating new Map reference
         workingDiffCache = new Map(workingDiffCache);
       }
     } catch (e) {
@@ -397,10 +413,21 @@
     }
   }
 
+  function applyTheme(theme: Theme) {
+    document.documentElement.setAttribute("data-theme", theme);
+    setTheme(theme);
+    invoke("set_theme_menu_state", { theme });
+  }
+
   onMount(() => {
     listen("worktree-changed", () => {
       // Clear the working diff cache since files have changed
       workingDiffCache = new Map();
+
+      if (selectedWorktree) {
+        // Refresh worktree status to update "Working Changes" entry visibility and file count
+        loadWorktreeStatus(selectedWorktree.path);
+      }
 
       if (workingSelected && selectedWorktree) {
         // If viewing working changes, auto-refresh with debounce
@@ -413,6 +440,16 @@
       unlisten = fn;
     });
 
+    listen<string>("menu-theme-changed", (event) => {
+      applyTheme(event.payload as Theme);
+    }).then((fn) => {
+      unlistenTheme = fn;
+    });
+
+    // Initialize theme from localStorage and sync with menu
+    const savedTheme = getTheme();
+    applyTheme(savedTheme);
+
     const lastRepo = getLastRepoPath();
     if (lastRepo) {
       repoPath = lastRepo;
@@ -422,6 +459,9 @@
     return () => {
       if (unlisten) {
         unlisten();
+      }
+      if (unlistenTheme) {
+        unlistenTheme();
       }
       if (refreshTimeout) {
         clearTimeout(refreshTimeout);
