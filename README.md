@@ -18,6 +18,7 @@ A Git worktree status viewer built with Tauri.
 1. Download `Woodeye_x.x.x_aarch64.dmg` (Apple Silicon) or `Woodeye_x.x.x_x64.dmg` (Intel) from [Releases](../../releases)
 2. Open the `.dmg` file and drag Woodeye to Applications
 3. **First launch:** Right-click the app and select "Open" (required for unsigned apps)
+4. **If you see "damaged" error:** Run `xattr -cr /Applications/Woodeye.app` in Terminal
 
 ### Windows
 
