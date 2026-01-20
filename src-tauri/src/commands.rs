@@ -225,6 +225,19 @@ pub async fn open_claude_status_window(app: tauri::AppHandle) -> Result<(), Stri
 }
 
 #[tauri::command]
+pub async fn set_claude_status_always_on_top(
+    app: tauri::AppHandle,
+    always_on_top: bool,
+) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("claude-status") {
+        window
+            .set_always_on_top(always_on_top)
+            .map_err(|e| format!("Failed to set always on top: {}", e))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn get_claude_hooks_state() -> Result<HooksState, String> {
     spawn_blocking(claude_status::get_hooks_state)
         .await

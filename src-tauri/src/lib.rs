@@ -32,7 +32,8 @@ pub fn run() {
             commands::open_claude_status_window,
             commands::get_claude_hooks_state,
             commands::remove_claude_hooks,
-            commands::apply_claude_hooks
+            commands::apply_claude_hooks,
+            commands::set_claude_status_always_on_top
         ])
         .setup(|app| {
             if let Err(e) = menu::build_menu(app) {

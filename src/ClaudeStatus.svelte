@@ -10,6 +10,7 @@
   let expandedSessions = $state<Set<string>>(new Set());
   let hooksState = $state<HooksState | null>(null);
   let hooksLoading = $state(false);
+  let alwaysOnTop = $state(localStorage.getItem("claude-status-always-on-top") === "true");
 
   function getProjectName(path: string): string {
     if (!path) return "Unknown";
@@ -130,6 +131,27 @@
     }
   }
 
+  async function toggleAlwaysOnTop() {
+    const newValue = !alwaysOnTop;
+    try {
+      await invoke("set_claude_status_always_on_top", { alwaysOnTop: newValue });
+      alwaysOnTop = newValue;
+      localStorage.setItem("claude-status-always-on-top", String(newValue));
+    } catch (e) {
+      console.error("Failed to toggle always on top:", e);
+    }
+  }
+
+  async function applyAlwaysOnTop() {
+    if (alwaysOnTop) {
+      try {
+        await invoke("set_claude_status_always_on_top", { alwaysOnTop: true });
+      } catch (e) {
+        console.error("Failed to apply always on top:", e);
+      }
+    }
+  }
+
   let unlisten: (() => void) | null = null;
   let pollInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -142,6 +164,7 @@
     // Load initial sessions and hooks state
     loadSessions();
     loadHooksState();
+    applyAlwaysOnTop();
 
     // Poll every second for updates
     pollInterval = setInterval(() => {
@@ -193,6 +216,19 @@
         {:else}
           {hooksState?.hooks_enabled ? "Remove" : "Apply"}
         {/if}
+      </button>
+    </div>
+    <div class="hooks-row">
+      <div class="hooks-info">
+        <span class="hooks-label">Always on Top</span>
+      </div>
+      <button
+        class="always-on-top-toggle"
+        class:enabled={alwaysOnTop}
+        onclick={toggleAlwaysOnTop}
+        title={alwaysOnTop ? "Disable always on top" : "Enable always on top"}
+      >
+        {alwaysOnTop ? "On" : "Off"}
       </button>
     </div>
   </div>
@@ -390,6 +426,33 @@
   .hooks-toggle:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  .always-on-top-toggle {
+    font-size: 0.75rem;
+    font-weight: 500;
+    padding: 4px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg);
+    color: var(--color-text);
+    cursor: pointer;
+    transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+    min-width: 50px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .always-on-top-toggle:hover {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+  }
+
+  .always-on-top-toggle.enabled {
+    background: rgba(124, 92, 252, 0.15);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
   }
 
   .spinner.small {
