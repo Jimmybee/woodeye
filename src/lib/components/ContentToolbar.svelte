@@ -35,6 +35,14 @@
     }
   }
 
+  async function handleOpenStatusWindow() {
+    try {
+      await invoke("open_claude_status_window");
+    } catch (e) {
+      console.error("Failed to open status window:", e);
+    }
+  }
+
   interface Props {
     repoPath: string;
     worktrees: Worktree[];
@@ -161,6 +169,16 @@
       </svg>
     </button>
     <button
+      class="status-btn"
+      onclick={handleOpenStatusWindow}
+      title="Claude Sessions"
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="3" width="18" height="18" rx="2"/>
+        <path d="M7 8h10M7 12h10M7 16h6"/>
+      </svg>
+    </button>
+    <button
       class="refresh-btn"
       class:has-changes={hasExternalChanges}
       onclick={onRefresh}
@@ -279,7 +297,8 @@
   }
 
   .refresh-btn,
-  .agent-btn {
+  .agent-btn,
+  .status-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -293,12 +312,14 @@
     transition: background-color 0.15s, color 0.15s, border-color 0.15s;
   }
 
-  .agent-btn:hover:not(:disabled) {
+  .agent-btn:hover:not(:disabled),
+  .status-btn:hover:not(:disabled) {
     border-color: var(--color-primary);
     color: var(--color-primary);
   }
 
-  .agent-btn:disabled {
+  .agent-btn:disabled,
+  .status-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }

@@ -1,3 +1,4 @@
+use crate::claude_status::{self, ClaudeSession, HooksState};
 use crate::git;
 use crate::menu;
 use crate::types::{
@@ -5,6 +6,7 @@ use crate::types::{
     WorktreeStatus,
 };
 use crate::watcher;
+use tauri::{Emitter, Manager, WebviewWindowBuilder};
 use tauri::async_runtime::spawn_blocking;
 
 #[tauri::command]
@@ -128,4 +130,114 @@ pub async fn open_claude_in_terminal(path: String) -> Result<(), String> {
 #[tauri::command]
 pub fn set_theme_menu_state(app_handle: tauri::AppHandle, theme: String) -> Result<(), String> {
     menu::update_theme_checkmarks(&app_handle, &theme)
+}
+
+#[tauri::command]
+pub async fn list_claude_sessions() -> Result<Vec<ClaudeSession>, String> {
+    spawn_blocking(claude_status::list_sessions)
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn delete_claude_session(session_id: String) -> Result<(), String> {
+    spawn_blocking(move || claude_status::delete_session(&session_id))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub fn start_watching_claude_status(app: tauri::AppHandle) -> Result<(), String> {
+    use notify_debouncer_mini::{new_debouncer, DebouncedEventKind};
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    let status_dir = claude_status::get_status_dir()
+        .ok_or("Could not determine status directory")?;
+
+    // Create the directory if it doesn't exist
+    if !status_dir.exists() {
+        std::fs::create_dir_all(&status_dir)
+            .map_err(|e| format!("Failed to create status directory: {}", e))?;
+    }
+
+    let (tx, rx) = mpsc::channel();
+
+    let mut debouncer = new_debouncer(Duration::from_millis(200), tx)
+        .map_err(|e| e.to_string())?;
+
+    debouncer
+        .watcher()
+        .watch(&status_dir, notify::RecursiveMode::NonRecursive)
+        .map_err(|e| format!("Failed to watch status directory: {}", e))?;
+
+    // Store the debouncer in app state to keep it alive
+    app.manage(ClaudeStatusWatcherState { _debouncer: debouncer });
+
+    // Spawn thread to handle events
+    let app_handle = app.clone();
+    std::thread::spawn(move || {
+        while let Ok(result) = rx.recv() {
+            match result {
+                Ok(events) => {
+                    let has_changes = events
+                        .iter()
+                        .any(|e| matches!(e.kind, DebouncedEventKind::Any));
+                    if has_changes {
+                        let _ = app_handle.emit("claude-status-changed", ());
+                    }
+                }
+                Err(e) => eprintln!("Claude status watch error: {:?}", e),
+            }
+        }
+    });
+
+    Ok(())
+}
+
+struct ClaudeStatusWatcherState {
+    _debouncer: notify_debouncer_mini::Debouncer<notify::RecommendedWatcher>,
+}
+
+#[tauri::command]
+pub async fn open_claude_status_window(app: tauri::AppHandle) -> Result<(), String> {
+    // Check if window already exists
+    if let Some(window) = app.get_webview_window("claude-status") {
+        window.show().map_err(|e| e.to_string())?;
+        window.set_focus().map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+
+    // Create new window
+    let url = tauri::WebviewUrl::App("claude-status.html".into());
+
+    WebviewWindowBuilder::new(&app, "claude-status", url)
+        .title("Claude Sessions")
+        .inner_size(400.0, 600.0)
+        .resizable(true)
+        .build()
+        .map_err(|e| format!("Failed to create window: {}", e))?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_claude_hooks_state() -> Result<HooksState, String> {
+    spawn_blocking(claude_status::get_hooks_state)
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn remove_claude_hooks() -> Result<(), String> {
+    spawn_blocking(claude_status::remove_hooks)
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn apply_claude_hooks() -> Result<(), String> {
+    spawn_blocking(claude_status::apply_hooks)
+        .await
+        .map_err(|e| e.to_string())?
 }

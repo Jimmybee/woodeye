@@ -101,3 +101,17 @@ export interface BranchInfo {
   is_remote: boolean;
   is_checked_out: boolean;
 }
+
+// Claude session types
+export interface ClaudeSession {
+  project_path: string;
+  session_id: string;
+  state: string; // "working", "idle", "waiting_for_approval"
+  timestamp: number;
+  raw_json: string;
+}
+
+export interface HooksState {
+  hooks_enabled: boolean;
+  hooks_json: string | null;
+}

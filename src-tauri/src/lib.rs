@@ -1,3 +1,4 @@
+mod claude_status;
 mod commands;
 mod git;
 mod menu;
@@ -24,7 +25,14 @@ pub fn run() {
             commands::list_branches,
             commands::open_in_terminal,
             commands::open_claude_in_terminal,
-            commands::set_theme_menu_state
+            commands::set_theme_menu_state,
+            commands::list_claude_sessions,
+            commands::delete_claude_session,
+            commands::start_watching_claude_status,
+            commands::open_claude_status_window,
+            commands::get_claude_hooks_state,
+            commands::remove_claude_hooks,
+            commands::apply_claude_hooks
         ])
         .setup(|app| {
             if let Err(e) = menu::build_menu(app) {
