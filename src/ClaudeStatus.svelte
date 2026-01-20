@@ -94,6 +94,24 @@
     }
   }
 
+  let focusNotFound = $state<string | null>(null);
+
+  async function focusTerminal(session: ClaudeSession) {
+    try {
+      const found = await invoke<boolean>("focus_terminal_for_path", { path: session.project_path });
+      if (!found) {
+        focusNotFound = session.session_id;
+        setTimeout(() => {
+          if (focusNotFound === session.session_id) {
+            focusNotFound = null;
+          }
+        }, 2000);
+      }
+    } catch (e) {
+      console.error("Failed to focus terminal:", e);
+    }
+  }
+
   async function loadSessions() {
     try {
       error = null;
@@ -263,6 +281,18 @@
               </span>
               <div class="session-actions">
                 <span class="session-time">{getRelativeTime(session.timestamp)}</span>
+                <button
+                  class="action-btn focus-btn"
+                  class:not-found={focusNotFound === session.session_id}
+                  onclick={() => focusTerminal(session)}
+                  title={focusNotFound === session.session_id ? "Terminal not found" : "Focus terminal"}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="2" y="4" width="20" height="16" rx="2"/>
+                    <path d="M6 9l3 3-3 3"/>
+                    <path d="M12 15h6"/>
+                  </svg>
+                </button>
                 <button
                   class="action-btn expand-btn"
                   onclick={() => toggleExpanded(session.session_id)}
@@ -571,6 +601,21 @@
 
   .action-btn:hover {
     background: var(--color-bg);
+  }
+
+  .focus-btn:hover {
+    color: var(--color-info);
+  }
+
+  .focus-btn.not-found {
+    color: var(--color-warning);
+    animation: shake 0.3s ease-in-out;
+  }
+
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-2px); }
+    75% { transform: translateX(2px); }
   }
 
   .expand-btn:hover {

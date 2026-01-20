@@ -257,3 +257,83 @@ pub async fn apply_claude_hooks() -> Result<(), String> {
         .await
         .map_err(|e| e.to_string())?
 }
+
+#[tauri::command]
+pub async fn focus_terminal_for_path(path: String) -> Result<bool, String> {
+    use std::process::Command;
+
+    // Step 1: Find processes with cwd matching the target path using lsof
+    let lsof_output = Command::new("lsof")
+        .args(["-d", "cwd"])
+        .output()
+        .map_err(|e| format!("Failed to run lsof: {}", e))?;
+
+    let lsof_str = String::from_utf8_lossy(&lsof_output.stdout);
+
+    // Step 2: Parse lsof output to find PIDs with matching cwd
+    // Format: COMMAND PID USER FD TYPE DEVICE SIZE/OFF NODE NAME
+    let matching_pids: Vec<String> = lsof_str
+        .lines()
+        .filter(|line| line.ends_with(&path) || line.contains(&format!("{} ", path)))
+        .filter_map(|line| {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() >= 2 {
+                Some(parts[1].to_string())
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    // Step 3: For each PID, get its tty
+    for pid in matching_pids {
+        let ps_output = Command::new("ps")
+            .args(["-p", &pid, "-o", "tty="])
+            .output()
+            .map_err(|e| format!("Failed to run ps: {}", e))?;
+
+        let tty = String::from_utf8_lossy(&ps_output.stdout).trim().to_string();
+
+        // Skip if no tty (e.g., "??") or empty
+        if tty.is_empty() || tty == "??" {
+            continue;
+        }
+
+        // Step 4: Try to focus Terminal tab with this tty
+        let tty_path = format!("/dev/{}", tty);
+        let script = format!(
+            r#"tell application "System Events"
+    if not (exists process "Terminal") then
+        return false
+    end if
+end tell
+
+tell application "Terminal"
+    repeat with w in windows
+        repeat with t in tabs of w
+            if tty of t is "{tty_path}" then
+                set frontmost of w to true
+                set selected of t to true
+                activate
+                return true
+            end if
+        end repeat
+    end repeat
+    return false
+end tell"#,
+            tty_path = tty_path.replace("\"", "\\\"")
+        );
+
+        let output = Command::new("osascript")
+            .args(["-e", &script])
+            .output()
+            .map_err(|e| format!("Failed to run AppleScript: {}", e))?;
+
+        let result = String::from_utf8_lossy(&output.stdout).trim().to_lowercase();
+        if result == "true" {
+            return Ok(true);
+        }
+    }
+
+    Ok(false)
+}

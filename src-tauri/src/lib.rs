@@ -33,7 +33,8 @@ pub fn run() {
             commands::get_claude_hooks_state,
             commands::remove_claude_hooks,
             commands::apply_claude_hooks,
-            commands::set_claude_status_always_on_top
+            commands::set_claude_status_always_on_top,
+            commands::focus_terminal_for_path
         ])
         .setup(|app| {
             if let Err(e) = menu::build_menu(app) {
