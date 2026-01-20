@@ -4,7 +4,8 @@ use crate::types::{
     WorktreeStatus,
 };
 use rayon::prelude::*;
-use std::path::PathBuf;
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 /// Run a git command in the specified directory and return stdout as String
@@ -249,6 +250,57 @@ pub fn get_commit_diff(worktree_path: &str, commit_sha: &str) -> Result<CommitDi
     })
 }
 
+/// Generate synthetic diff hunks for a new/untracked file
+/// Returns (hunks, is_binary) - empty hunks if binary or read fails
+fn generate_new_file_hunks(file_path: &Path) -> (Vec<DiffHunk>, bool) {
+    // Read file content
+    let content = match fs::read(file_path) {
+        Ok(bytes) => bytes,
+        Err(_) => return (Vec::new(), false),
+    };
+
+    // Check if binary by looking for null bytes in first 8KB
+    let check_len = content.len().min(8192);
+    if content[..check_len].contains(&0) {
+        return (Vec::new(), true);
+    }
+
+    // Convert to string
+    let text = match String::from_utf8(content) {
+        Ok(s) => s,
+        Err(_) => return (Vec::new(), true), // Non-UTF8 treated as binary
+    };
+
+    // Split into lines
+    let lines: Vec<&str> = text.lines().collect();
+    let line_count = lines.len() as u32;
+
+    if line_count == 0 {
+        return (Vec::new(), false);
+    }
+
+    // Create diff lines (all additions)
+    let diff_lines: Vec<DiffLine> = lines
+        .into_iter()
+        .map(|line| DiffLine {
+            kind: '+',
+            content: line.to_string(),
+        })
+        .collect();
+
+    // Create single hunk for the entire file
+    let hunk = DiffHunk {
+        old_start: 0,
+        old_lines: 0,
+        new_start: 1,
+        new_lines: line_count,
+        header: format!("@@ -0,0 +1,{} @@", line_count),
+        lines: diff_lines,
+    };
+
+    (vec![hunk], false)
+}
+
 // Get uncommitted working directory changes using git CLI
 pub fn get_working_diff(worktree_path: &str) -> Result<WorkingDiff, String> {
     // Get staged changes: git diff --cached
@@ -261,14 +313,17 @@ pub fn get_working_diff(worktree_path: &str) -> Result<WorkingDiff, String> {
 
     // Get untracked files: git ls-files --others --exclude-standard
     let untracked_text = run_git(worktree_path, &["ls-files", "--others", "--exclude-standard"])?;
+    let worktree_dir = Path::new(worktree_path);
     for line in untracked_text.lines() {
         if !line.is_empty() {
+            let file_path = worktree_dir.join(line);
+            let (hunks, binary) = generate_new_file_hunks(&file_path);
             unstaged_files.push(FileDiff {
                 path: line.to_string(),
                 status: FileStatus::Added,
                 old_path: None,
-                hunks: Vec::new(), // Untracked files don't have hunks
-                binary: false,
+                hunks,
+                binary,
             });
         }
     }
