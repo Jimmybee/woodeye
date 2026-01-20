@@ -7,16 +7,16 @@
   let terminalMenuOpen = $state(false);
 
   // Tooltip positioning
-  type TooltipPosition = { align: 'center' | 'left' | 'right' };
+  type TooltipPosition = { align: "center" | "left" | "right" };
   let tooltipPositions = $state<Record<string, TooltipPosition>>({
-    terminal: { align: 'center' },
-    agent: { align: 'center' },
-    refresh: { align: 'center' }
+    terminal: { align: "center" },
+    agent: { align: "center" },
+    refresh: { align: "center" },
   });
 
   function handleTooltipEnter(event: MouseEvent, tooltipId: string) {
     const button = event.currentTarget as HTMLElement;
-    const tooltip = button.querySelector('.tooltip') as HTMLElement;
+    const tooltip = button.querySelector(".tooltip") as HTMLElement;
     if (!tooltip) return;
 
     const buttonRect = button.getBoundingClientRect();
@@ -31,11 +31,11 @@
     const padding = 8; // Minimum distance from viewport edge
 
     if (tooltipLeft < padding) {
-      tooltipPositions[tooltipId] = { align: 'left' };
+      tooltipPositions[tooltipId] = { align: "left" };
     } else if (tooltipRight > viewportWidth - padding) {
-      tooltipPositions[tooltipId] = { align: 'right' };
+      tooltipPositions[tooltipId] = { align: "right" };
     } else {
-      tooltipPositions[tooltipId] = { align: 'center' };
+      tooltipPositions[tooltipId] = { align: "center" };
     }
   }
 
@@ -53,7 +53,10 @@
     terminalMenuOpen = false;
     if (!selectedWorktree) return;
     try {
-      await invoke("open_in_terminal", { path: selectedWorktree.path, terminal });
+      await invoke("open_in_terminal", {
+        path: selectedWorktree.path,
+        terminal,
+      });
     } catch (e) {
       console.error("Failed to open terminal:", e);
     }
@@ -114,32 +117,63 @@
 
 <header class="content-toolbar">
   <div class="toolbar-logo">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <circle cx="12" cy="12" r="3"/>
-      <path d="M12 2v4m0 12v4M2 12h4m12 0h4"/>
-      <path d="M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/>
+    <svg
+      width="22"
+      height="22"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+    >
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 2v4m0 12v4M2 12h4m12 0h4" />
+      <path
+        d="M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"
+      />
     </svg>
     <span>Woodeye</span>
   </div>
 
   <div class="context-card repo-context" title={repoPath}>
-      <svg class="context-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
-      </svg>
-      {#if repoPath}
-        <span class="context-value">{getFolderName(repoPath)}</span>
+    <svg
+      class="context-icon"
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+    >
+      <path
+        d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+      />
+    </svg>
+    {#if repoPath}
+      <span class="context-value">{getFolderName(repoPath)}</span>
+    {:else}
+      <span class="context-placeholder">No repository</span>
+    {/if}
+    <button
+      class="context-action"
+      onclick={handleBrowse}
+      disabled={loading}
+      title="Browse for repository"
+    >
+      {#if loading}
+        <span class="btn-spinner"></span>
       {:else}
-        <span class="context-placeholder">No repository</span>
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M5 12h14M12 5l7 7-7 7" />
+        </svg>
       {/if}
-      <button class="context-action" onclick={handleBrowse} disabled={loading} title="Browse for repository">
-        {#if loading}
-          <span class="btn-spinner"></span>
-        {:else}
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M5 12h14M12 5l7 7-7 7"/>
-          </svg>
-        {/if}
-      </button>
+    </button>
   </div>
 
   {#if worktrees.length > 0}
@@ -159,25 +193,49 @@
       <button
         class="terminal-btn"
         onclick={toggleTerminalMenu}
-        onmouseenter={(e) => handleTooltipEnter(e, 'terminal')}
+        onmouseenter={(e) => handleTooltipEnter(e, "terminal")}
         disabled={!selectedWorktree}
       >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="4 17 10 11 4 5"/>
-          <line x1="12" y1="19" x2="20" y2="19"/>
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <polyline points="4 17 10 11 4 5" />
+          <line x1="12" y1="19" x2="20" y2="19" />
         </svg>
-        <span class="tooltip tooltip-{tooltipPositions.terminal.align}">Open in terminal</span>
+        <span class="tooltip tooltip-{tooltipPositions.terminal.align}"
+          >Open in terminal</span
+        >
       </button>
       {#if terminalMenuOpen}
         <div class="terminal-menu">
-          <button class="terminal-option" onclick={() => handleOpenTerminal("terminal")}>
+          <button
+            class="terminal-option"
+            onclick={() => handleOpenTerminal("terminal")}
+          >
             Terminal
           </button>
-          <button class="terminal-option" onclick={() => handleOpenTerminal("warp")}>
+          <button
+            class="terminal-option"
+            onclick={() => handleOpenTerminal("warp")}
+          >
             Warp
           </button>
-          <button class="terminal-option" onclick={() => handleOpenTerminal("iterm")}>
+          <button
+            class="terminal-option"
+            onclick={() => handleOpenTerminal("iterm")}
+          >
             iTerm
+          </button>
+          <button
+            class="terminal-option"
+            onclick={() => handleOpenTerminal("ghostty")}
+          >
+            Ghostty
           </button>
         </div>
       {/if}
@@ -185,28 +243,49 @@
     <button
       class="agent-btn"
       onclick={handleOpenAgent}
-      onmouseenter={(e) => handleTooltipEnter(e, 'agent')}
+      onmouseenter={(e) => handleTooltipEnter(e, "agent")}
       disabled={!selectedWorktree}
     >
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="8" r="4"/>
-        <path d="M6 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/>
-        <path d="M12 4V2m-4 3L7 3m10 2l1-2"/>
+      <svg
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <circle cx="12" cy="8" r="4" />
+        <path d="M6 20c0-3.3 2.7-6 6-6s6 2.7 6 6" />
+        <path d="M12 4V2m-4 3L7 3m10 2l1-2" />
       </svg>
-      <span class="tooltip tooltip-{tooltipPositions.agent.align}">Open Claude agent</span>
+      <span class="tooltip tooltip-{tooltipPositions.agent.align}"
+        >Open Claude agent</span
+      >
     </button>
     <button
       class="refresh-btn"
       class:has-changes={hasExternalChanges}
       onclick={onRefresh}
-      onmouseenter={(e) => handleTooltipEnter(e, 'refresh')}
+      onmouseenter={(e) => handleTooltipEnter(e, "refresh")}
       disabled={refreshing || loading || worktrees.length === 0}
     >
-      <svg class:spinning={refreshing} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M21 12a9 9 0 1 1-9-9"/>
-        <path d="M21 3v9h-9"/>
+      <svg
+        class:spinning={refreshing}
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <path d="M21 12a9 9 0 1 1-9-9" />
+        <path d="M21 3v9h-9" />
       </svg>
-      <span class="tooltip tooltip-{tooltipPositions.refresh.align}">{hasExternalChanges ? "Changes detected - click to refresh" : "Refresh"}</span>
+      <span class="tooltip tooltip-{tooltipPositions.refresh.align}"
+        >{hasExternalChanges
+          ? "Changes detected - click to refresh"
+          : "Refresh"}</span
+      >
     </button>
   </div>
 </header>
@@ -279,7 +358,9 @@
     background: transparent;
     color: var(--color-text-muted);
     cursor: pointer;
-    transition: background-color 0.15s, color 0.15s;
+    transition:
+      background-color 0.15s,
+      color 0.15s;
     flex-shrink: 0;
   }
 
@@ -326,7 +407,10 @@
     background: var(--color-bg);
     color: var(--color-text-muted);
     cursor: pointer;
-    transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+    transition:
+      background-color 0.15s,
+      color 0.15s,
+      border-color 0.15s;
   }
 
   .agent-btn:hover:not(:disabled) {
@@ -385,7 +469,10 @@
     background: var(--color-bg);
     color: var(--color-text-muted);
     cursor: pointer;
-    transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+    transition:
+      background-color 0.15s,
+      color 0.15s,
+      border-color 0.15s;
   }
 
   .terminal-btn:hover:not(:disabled) {
@@ -457,7 +544,9 @@
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     opacity: 0;
     visibility: hidden;
-    transition: opacity 0.15s ease, visibility 0.15s ease;
+    transition:
+      opacity 0.15s ease,
+      visibility 0.15s ease;
     pointer-events: none;
     z-index: 200;
   }

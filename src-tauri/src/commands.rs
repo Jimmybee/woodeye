@@ -95,8 +95,11 @@ pub async fn open_in_terminal(path: String, terminal: String) -> Result<(), Stri
 
     let result = match terminal.as_str() {
         "terminal" => Command::new("open").args(["-a", "Terminal", &path]).spawn(),
-        "warp" => Command::new("open").arg(format!("warp://action/new_window?path={}", path)).spawn(),
+        "warp" => Command::new("open")
+            .arg(format!("warp://action/new_window?path={}", path))
+            .spawn(),
         "iterm" => Command::new("open").args(["-a", "iTerm", &path]).spawn(),
+        "ghostty" => Command::new("open").args(["-a", "ghostty", &path]).spawn(),
         _ => return Err(format!("Unknown terminal: {}", terminal)),
     };
 
