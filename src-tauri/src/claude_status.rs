@@ -202,6 +202,13 @@ fn generate_woodeye_hooks() -> Value {
                 "command": name_cmd,
                 "type": "command"
             }]
+        }],
+        "Notification": [{
+            "hooks": [{
+                "command": base_cmd("waiting_for_approval"),
+                "type": "command"
+            }],
+            "matcher": "permission_prompt"
         }]
     })
 }
