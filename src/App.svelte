@@ -16,6 +16,8 @@
     BranchInfo,
     CreateWorktreeOptions,
     PruneResult,
+    WorktreeClaudeStatus,
+    ClaudeHooksConfig,
   } from "./lib/types";
   import { getLastRepoPath, saveLastRepoPath, getTheme, setTheme, type Theme } from "./lib/store";
 
@@ -39,6 +41,11 @@
   let hasExternalChanges = $state(false);
   let unlisten: UnlistenFn | null = null;
   let unlistenTheme: UnlistenFn | null = null;
+  let unlistenClaude: UnlistenFn | null = null;
+
+  // Claude status state
+  let claudeStatuses: Map<string, WorktreeClaudeStatus> = $state(new Map());
+  let claudeHooksConfig: ClaudeHooksConfig | null = $state(null);
 
   // Working diff cache (keyed by worktree path)
   let workingDiffCache: Map<string, WorkingDiff> = $state(new Map());
@@ -83,6 +90,9 @@
 
       // Load status for all worktrees in background
       loadAllWorktreeStatuses(result);
+
+      // Load Claude statuses for all worktrees
+      loadClaudeStatuses();
     } catch (e) {
       error = String(e);
     } finally {
@@ -419,6 +429,74 @@
     invoke("set_theme_menu_state", { theme });
   }
 
+  /** Load Claude status for all worktrees */
+  async function loadClaudeStatuses() {
+    if (worktrees.length === 0) return;
+
+    try {
+      const paths = worktrees.map((w) => w.path);
+      const statuses = await invoke<Record<string, WorktreeClaudeStatus>>(
+        "get_all_claude_statuses",
+        { worktreePaths: paths }
+      );
+      claudeStatuses = new Map(Object.entries(statuses));
+    } catch (e) {
+      console.error("Failed to load Claude statuses:", e);
+    }
+  }
+
+  /** Check and load Claude hooks configuration */
+  async function checkClaudeHooks() {
+    try {
+      claudeHooksConfig = await invoke<ClaudeHooksConfig>("check_claude_hooks");
+    } catch (e) {
+      console.error("Failed to check Claude hooks:", e);
+    }
+  }
+
+  /** Configure Claude hooks for Woodeye status tracking */
+  async function handleConfigureHooks() {
+    try {
+      await invoke("configure_claude_hooks");
+      await checkClaudeHooks();
+      // Show success message
+      await message("Claude hooks configured successfully! Status tracking is now enabled.", {
+        title: "Hooks Configured",
+        kind: "info",
+      });
+      // Start watching for Claude status changes
+      invoke("start_claude_watching");
+    } catch (e) {
+      await message(String(e), { title: "Configuration Failed", kind: "error" });
+    }
+  }
+
+  /** Remove Claude hooks from settings */
+  async function handleRemoveHooks() {
+    const confirmed = await ask(
+      "This will remove Woodeye hooks from Claude settings. Status tracking will be disabled.",
+      {
+        title: "Remove Hooks",
+        kind: "warning",
+        okLabel: "Remove",
+        cancelLabel: "Cancel",
+      }
+    );
+
+    if (!confirmed) return;
+
+    try {
+      await invoke("remove_claude_hooks");
+      await checkClaudeHooks();
+      await message("Claude hooks removed. Status tracking is now disabled.", {
+        title: "Hooks Removed",
+        kind: "info",
+      });
+    } catch (e) {
+      await message(String(e), { title: "Removal Failed", kind: "error" });
+    }
+  }
+
   onMount(() => {
     listen("worktree-changed", () => {
       // Clear the working diff cache since files have changed
@@ -446,9 +524,24 @@
       unlistenTheme = fn;
     });
 
+    // Listen for Claude status changes
+    listen("claude-status-changed", () => {
+      loadClaudeStatuses();
+    }).then((fn) => {
+      unlistenClaude = fn;
+    });
+
     // Initialize theme from localStorage and sync with menu
     const savedTheme = getTheme();
     applyTheme(savedTheme);
+
+    // Check Claude hooks configuration
+    checkClaudeHooks();
+
+    // Start watching for Claude status changes
+    invoke("start_claude_watching").catch((e) => {
+      console.error("Failed to start Claude watching:", e);
+    });
 
     const lastRepo = getLastRepoPath();
     if (lastRepo) {
@@ -463,6 +556,9 @@
       if (unlistenTheme) {
         unlistenTheme();
       }
+      if (unlistenClaude) {
+        unlistenClaude();
+      }
       if (refreshTimeout) {
         clearTimeout(refreshTimeout);
       }
@@ -475,6 +571,8 @@
     bind:repoPath
     {worktrees}
     {selectedWorktree}
+    {claudeStatuses}
+    {claudeHooksConfig}
     {loading}
     {refreshing}
     {hasExternalChanges}
@@ -484,6 +582,8 @@
     onDeleteWorktree={handleDeleteWorktree}
     onPruneWorktrees={handlePruneWorktrees}
     onRefresh={refreshAll}
+    onConfigureHooks={handleConfigureHooks}
+    onRemoveHooks={handleRemoveHooks}
   />
 
   <main class="main-content">

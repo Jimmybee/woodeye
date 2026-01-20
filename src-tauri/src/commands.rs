@@ -1,10 +1,12 @@
+use crate::claude_watcher;
 use crate::git;
 use crate::menu;
 use crate::types::{
-    BranchInfo, CommitDiff, CommitInfo, CreateWorktreeOptions, PruneResult, WorkingDiff, Worktree,
-    WorktreeStatus,
+    BranchInfo, ClaudeHooksConfig, CommitDiff, CommitInfo, CreateWorktreeOptions, DebugInfo,
+    PruneResult, WorkingDiff, Worktree, WorktreeClaudeStatus, WorktreeStatus,
 };
 use crate::watcher;
+use std::collections::HashMap;
 use tauri::async_runtime::spawn_blocking;
 
 #[tauri::command]
@@ -128,4 +130,50 @@ pub async fn open_claude_in_terminal(path: String) -> Result<(), String> {
 #[tauri::command]
 pub fn set_theme_menu_state(app_handle: tauri::AppHandle, theme: String) -> Result<(), String> {
     menu::update_theme_checkmarks(&app_handle, &theme)
+}
+
+// Claude status commands
+#[tauri::command]
+pub async fn get_claude_status(worktree_path: String) -> Result<WorktreeClaudeStatus, String> {
+    spawn_blocking(move || Ok(claude_watcher::get_claude_status(&worktree_path)))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn get_all_claude_statuses(
+    worktree_paths: Vec<String>,
+) -> Result<HashMap<String, WorktreeClaudeStatus>, String> {
+    spawn_blocking(move || Ok(claude_watcher::get_all_claude_statuses(&worktree_paths)))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub fn start_claude_watching(app: tauri::AppHandle) -> Result<(), String> {
+    claude_watcher::start_claude_watching(app)
+}
+
+#[tauri::command]
+pub fn check_claude_hooks() -> ClaudeHooksConfig {
+    claude_watcher::check_hooks_configured()
+}
+
+#[tauri::command]
+pub async fn configure_claude_hooks() -> Result<(), String> {
+    spawn_blocking(claude_watcher::configure_claude_hooks)
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn remove_claude_hooks() -> Result<(), String> {
+    spawn_blocking(claude_watcher::remove_claude_hooks)
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub fn get_debug_info() -> DebugInfo {
+    claude_watcher::get_debug_info()
 }

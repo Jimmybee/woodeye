@@ -101,3 +101,49 @@ export interface BranchInfo {
   is_remote: boolean;
   is_checked_out: boolean;
 }
+
+// Claude session types
+export type ClaudeSessionState =
+  | "working"
+  | "waiting_for_approval"
+  | "waiting_for_input"
+  | "idle"
+  | "unknown";
+
+export interface ClaudeSession {
+  session_id: string;
+  project_path: string;
+  state: ClaudeSessionState;
+  waiting_reason: string | null;
+  timestamp: number;
+  /** Last tool that was invoked (for tool-aware timeouts) */
+  last_tool: string | null;
+}
+
+export interface WorktreeClaudeStatus {
+  active_sessions: ClaudeSession[];
+  has_pending_input: boolean;
+}
+
+export interface ClaudeHooksConfig {
+  configured: boolean;
+  status_dir_exists: boolean;
+}
+
+// Debug window types
+export interface StatusFileInfo {
+  filename: string;
+  project_path: string;
+  state: string;
+  timestamp: number;
+  age_seconds: number;
+  is_stale: boolean;
+}
+
+export interface DebugInfo {
+  status_dir: string;
+  status_files: StatusFileInfo[];
+  hooks_configured: boolean;
+  current_timestamp: number;
+  stale_threshold_secs: number;
+}

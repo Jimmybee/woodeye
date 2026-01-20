@@ -2,9 +2,10 @@
   import { invoke } from "@tauri-apps/api/core";
   import { open } from "@tauri-apps/plugin-dialog";
   import WorktreeDropdown from "./WorktreeDropdown.svelte";
-  import type { Worktree } from "../types";
+  import type { Worktree, WorktreeClaudeStatus, ClaudeHooksConfig } from "../types";
 
   let terminalMenuOpen = $state(false);
+  let claudeMenuOpen = $state(false);
 
   function getFolderName(path: string): string {
     if (!path) return "";
@@ -39,6 +40,8 @@
     repoPath: string;
     worktrees: Worktree[];
     selectedWorktree: Worktree | null;
+    claudeStatuses: Map<string, WorktreeClaudeStatus>;
+    claudeHooksConfig: ClaudeHooksConfig | null;
     loading: boolean;
     refreshing: boolean;
     hasExternalChanges: boolean;
@@ -48,12 +51,16 @@
     onDeleteWorktree: (worktree: Worktree) => void;
     onPruneWorktrees: () => void;
     onRefresh: () => void;
+    onConfigureHooks: () => void;
+    onRemoveHooks: () => void;
   }
 
   let {
     repoPath = $bindable(),
     worktrees,
     selectedWorktree,
+    claudeStatuses,
+    claudeHooksConfig,
     loading,
     refreshing,
     hasExternalChanges,
@@ -63,7 +70,31 @@
     onDeleteWorktree,
     onPruneWorktrees,
     onRefresh,
+    onConfigureHooks,
+    onRemoveHooks,
   }: Props = $props();
+
+  function toggleClaudeMenu() {
+    claudeMenuOpen = !claudeMenuOpen;
+    if (claudeMenuOpen) {
+      terminalMenuOpen = false;
+    }
+  }
+
+  function handleConfigureHooks() {
+    claudeMenuOpen = false;
+    onConfigureHooks();
+  }
+
+  function handleRemoveHooks() {
+    claudeMenuOpen = false;
+    onRemoveHooks();
+  }
+
+  // Get Claude status for the selected worktree
+  let selectedClaudeStatus = $derived(
+    selectedWorktree ? claudeStatuses.get(selectedWorktree.path) : undefined
+  );
 
   async function handleBrowse() {
     const selected = await open({
@@ -113,6 +144,7 @@
     <WorktreeDropdown
       {worktrees}
       {selectedWorktree}
+      {claudeStatuses}
       {onSelectWorktree}
       {onCreateWorktree}
       {onDeleteWorktree}
@@ -150,16 +182,66 @@
     </div>
     <button
       class="agent-btn"
+      class:has-session={selectedClaudeStatus?.active_sessions.length}
+      class:needs-input={selectedClaudeStatus?.has_pending_input}
       onclick={handleOpenAgent}
       disabled={!selectedWorktree}
-      title="Open Claude agent"
+      title={selectedClaudeStatus?.has_pending_input
+        ? "Claude needs input - click to open"
+        : selectedClaudeStatus?.active_sessions.length
+          ? "Claude session active - click to open"
+          : "Open Claude agent"}
     >
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <circle cx="12" cy="8" r="4"/>
         <path d="M6 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/>
         <path d="M12 4V2m-4 3L7 3m10 2l1-2"/>
       </svg>
+      {#if selectedClaudeStatus?.has_pending_input}
+        <span class="agent-badge waiting"></span>
+      {:else if selectedClaudeStatus?.active_sessions.length}
+        <span class="agent-badge active"></span>
+      {/if}
     </button>
+    <div class="claude-menu-wrapper">
+      <button
+        class="hooks-btn"
+        class:configured={claudeHooksConfig?.configured}
+        onclick={toggleClaudeMenu}
+        title={claudeHooksConfig?.configured ? "Claude hooks settings" : "Enable Claude status tracking"}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
+        </svg>
+      </button>
+      {#if claudeMenuOpen}
+        <div class="claude-menu">
+          {#if claudeHooksConfig?.configured}
+            <button class="claude-menu-option" onclick={handleConfigureHooks}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.66 0 3-4.03 3-9s-1.34-9-3-9m0 18c-1.66 0-3-4.03-3-9s1.34-9 3-9"/>
+              </svg>
+              Reconfigure Hooks
+            </button>
+            <button class="claude-menu-option danger" onclick={handleRemoveHooks}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/>
+                <path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+              </svg>
+              Remove Hooks
+            </button>
+          {:else}
+            <button class="claude-menu-option" onclick={handleConfigureHooks}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 5v14M5 12h14"/>
+              </svg>
+              Enable Status Tracking
+            </button>
+          {/if}
+        </div>
+      {/if}
+    </div>
     <button
       class="refresh-btn"
       class:has-changes={hasExternalChanges}
@@ -293,6 +375,10 @@
     transition: background-color 0.15s, color 0.15s, border-color 0.15s;
   }
 
+  .agent-btn {
+    position: relative;
+  }
+
   .agent-btn:hover:not(:disabled) {
     border-color: var(--color-primary);
     color: var(--color-primary);
@@ -301,6 +387,117 @@
   .agent-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  .agent-btn.has-session {
+    border-color: var(--color-success);
+    color: var(--color-success);
+  }
+
+  .agent-btn.needs-input {
+    border-color: var(--color-warning);
+    color: var(--color-warning);
+  }
+
+  .agent-badge {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+
+  .agent-badge.active {
+    background: var(--color-success);
+  }
+
+  .agent-badge.waiting {
+    background: var(--color-warning);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  .claude-menu-wrapper {
+    position: relative;
+  }
+
+  .hooks-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: 1px dashed var(--color-warning);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-warning);
+    cursor: pointer;
+    transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+  }
+
+  .hooks-btn.configured {
+    border: 1px solid var(--color-border);
+    color: var(--color-text-muted);
+  }
+
+  .hooks-btn:hover {
+    background: rgba(245, 158, 11, 0.1);
+    border-style: solid;
+    border-color: var(--color-warning);
+    color: var(--color-warning);
+  }
+
+  .claude-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+    z-index: 100;
+    min-width: 180px;
+  }
+
+  .claude-menu-option {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    border: none;
+    background: transparent;
+    color: var(--color-text);
+    font-size: 0.85rem;
+    text-align: left;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color 0.15s;
+  }
+
+  .claude-menu-option:hover {
+    background: var(--color-bg);
+  }
+
+  .claude-menu-option.danger {
+    color: var(--color-error);
+  }
+
+  .claude-menu-option.danger:hover {
+    background: rgba(248, 113, 113, 0.1);
+  }
+
+  @keyframes pulse {
+    0%, 100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.6;
+      transform: scale(1.2);
+    }
   }
 
   .refresh-btn:hover:not(:disabled) {

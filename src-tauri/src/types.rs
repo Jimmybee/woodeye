@@ -124,3 +124,58 @@ pub struct BranchInfo {
     pub is_remote: bool,
     pub is_checked_out: bool,
 }
+
+// Claude session types
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum ClaudeSessionState {
+    Working,
+    WaitingForApproval,
+    WaitingForInput,
+    Idle,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClaudeSession {
+    pub session_id: String,
+    pub project_path: String,
+    pub state: ClaudeSessionState,
+    pub waiting_reason: Option<String>,
+    pub timestamp: i64,
+    /// Last tool that was invoked (for tool-aware timeouts)
+    #[serde(default)]
+    pub last_tool: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorktreeClaudeStatus {
+    pub active_sessions: Vec<ClaudeSession>,
+    pub has_pending_input: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClaudeHooksConfig {
+    pub configured: bool,
+    pub status_dir_exists: bool,
+}
+
+// Debug window types
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StatusFileInfo {
+    pub filename: String,
+    pub project_path: String,
+    pub state: String,
+    pub timestamp: i64,
+    pub age_seconds: i64,
+    pub is_stale: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DebugInfo {
+    pub status_dir: String,
+    pub status_files: Vec<StatusFileInfo>,
+    pub hooks_configured: bool,
+    pub current_timestamp: i64,
+    pub stale_threshold_secs: i64,
+}

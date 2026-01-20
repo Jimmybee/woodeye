@@ -1,9 +1,10 @@
 <script lang="ts">
-  import type { Worktree } from "../types";
+  import type { Worktree, WorktreeClaudeStatus } from "../types";
 
   interface Props {
     worktrees: Worktree[];
     selectedWorktree: Worktree | null;
+    claudeStatuses: Map<string, WorktreeClaudeStatus>;
     onSelectWorktree: (worktree: Worktree) => void;
     onCreateWorktree: () => void;
     onDeleteWorktree: (worktree: Worktree) => void;
@@ -14,12 +15,18 @@
   let {
     worktrees,
     selectedWorktree,
+    claudeStatuses,
     onSelectWorktree,
     onCreateWorktree,
     onDeleteWorktree,
     onPruneWorktrees,
     loading = false,
   }: Props = $props();
+
+  // Get Claude status for the selected worktree
+  let selectedClaudeStatus = $derived(
+    selectedWorktree ? claudeStatuses.get(selectedWorktree.path) : undefined
+  );
 
   let isOpen = $state(false);
   let dropdownRef: HTMLDivElement | null = $state(null);
@@ -115,6 +122,11 @@
         {#if hasChanges}
           <span class="change-indicator" title="Has uncommitted changes"></span>
         {/if}
+        {#if selectedClaudeStatus?.has_pending_input}
+          <span class="claude-indicator waiting" title="Claude needs input"></span>
+        {:else if selectedClaudeStatus?.active_sessions.length}
+          <span class="claude-indicator active" title="Claude session active"></span>
+        {/if}
       {:else}
         <span class="placeholder">Select worktree...</span>
       {/if}
@@ -146,6 +158,7 @@
         {#each worktrees as worktree (worktree.path)}
           {@const isSelected = selectedWorktree?.path === worktree.path}
           {@const wtHasChanges = worktree.status ? !worktree.status.is_clean : false}
+          {@const wtClaudeStatus = claudeStatuses.get(worktree.path)}
           <div class="worktree-option-wrapper">
             <button
               class="worktree-option"
@@ -183,6 +196,11 @@
                 </div>
               </div>
               <div class="worktree-meta">
+                {#if wtClaudeStatus?.has_pending_input}
+                  <span class="claude-indicator waiting" title="Claude needs input"></span>
+                {:else if wtClaudeStatus?.active_sessions.length}
+                  <span class="claude-indicator active" title="Claude session active"></span>
+                {/if}
                 {#if wtHasChanges}
                   <span class="change-indicator" title="Has uncommitted changes"></span>
                 {/if}
@@ -286,6 +304,33 @@
     border-radius: 50%;
     background: var(--color-warning);
     flex-shrink: 0;
+  }
+
+  .claude-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .claude-indicator.active {
+    background: var(--color-success);
+  }
+
+  .claude-indicator.waiting {
+    background: var(--color-warning);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.6;
+      transform: scale(1.2);
+    }
   }
 
   .placeholder {

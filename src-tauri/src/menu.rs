@@ -1,6 +1,7 @@
 use tauri::{
-    menu::{CheckMenuItemBuilder, MenuBuilder, SubmenuBuilder},
-    App, AppHandle, Emitter,
+    menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder, SubmenuBuilder},
+    webview::WebviewWindowBuilder,
+    App, AppHandle, Emitter, Manager, WebviewUrl,
 };
 
 pub fn build_menu(app: &App) -> Result<(), Box<dyn std::error::Error>> {
@@ -22,8 +23,13 @@ pub fn build_menu(app: &App) -> Result<(), Box<dyn std::error::Error>> {
         .item(&theme_dark)
         .build()?;
 
+    let debug_item = MenuItemBuilder::with_id("debug_status", "Debug Status...")
+        .build(app)?;
+
     let view_menu = SubmenuBuilder::new(app, "View")
         .item(&theme_submenu)
+        .separator()
+        .item(&debug_item)
         .build()?;
 
     let menu = MenuBuilder::new(app).item(&view_menu).build()?;
@@ -77,7 +83,29 @@ pub fn setup_menu_events(app: &App) {
                     eprintln!("Failed to emit theme event: {}", e);
                 }
             }
+            "debug_status" => {
+                if let Err(e) = open_debug_window(&app_handle) {
+                    eprintln!("Failed to open debug window: {}", e);
+                }
+            }
             _ => {}
         }
     });
+}
+
+fn open_debug_window(app_handle: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
+    // Check if window already exists
+    if let Some(window) = app_handle.get_webview_window("debug") {
+        window.set_focus()?;
+        return Ok(());
+    }
+
+    // Create new debug window
+    WebviewWindowBuilder::new(app_handle, "debug", WebviewUrl::App("/debug".into()))
+        .title("Woodeye Debug")
+        .inner_size(700.0, 500.0)
+        .resizable(true)
+        .build()?;
+
+    Ok(())
 }
