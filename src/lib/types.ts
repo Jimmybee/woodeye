@@ -108,6 +108,7 @@ export interface ClaudeSession {
   session_id: string;
   state: string; // "working", "idle", "waiting_for_approval"
   timestamp: number;
+  name?: string; // Extracted from first prompt
   raw_json: string;
 }
 

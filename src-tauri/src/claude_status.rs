@@ -9,6 +9,7 @@ pub struct ClaudeSession {
     pub session_id: String,
     pub state: String, // "working", "idle", "waiting_for_approval"
     pub timestamp: u64,
+    pub name: Option<String>, // Extracted from first prompt
     #[serde(skip_deserializing)]
     pub raw_json: String,
 }
@@ -23,6 +24,51 @@ pub fn get_status_dir() -> Option<PathBuf> {
     dirs::home_dir().map(|h| h.join(".woodeye-status"))
 }
 
+fn get_names_file_path() -> Option<PathBuf> {
+    get_status_dir().map(|d| d.join("names.json"))
+}
+
+/// Read session names from the separate names file
+fn read_session_names() -> std::collections::HashMap<String, String> {
+    let Some(path) = get_names_file_path() else {
+        return std::collections::HashMap::new();
+    };
+
+    if !path.exists() {
+        return std::collections::HashMap::new();
+    }
+
+    fs::read_to_string(&path)
+        .ok()
+        .and_then(|contents| serde_json::from_str(&contents).ok())
+        .unwrap_or_default()
+}
+
+/// Remove a session name from the names file
+fn remove_session_name(session_id: &str) -> Result<(), String> {
+    let path = get_names_file_path().ok_or("Could not determine names file path")?;
+
+    if !path.exists() {
+        return Ok(());
+    }
+
+    let contents = fs::read_to_string(&path)
+        .map_err(|e| format!("Failed to read names file: {}", e))?;
+
+    let mut names: std::collections::HashMap<String, String> = serde_json::from_str(&contents)
+        .unwrap_or_default();
+
+    names.remove(session_id);
+
+    let updated = serde_json::to_string_pretty(&names)
+        .map_err(|e| format!("Failed to serialize names: {}", e))?;
+
+    fs::write(&path, updated)
+        .map_err(|e| format!("Failed to write names file: {}", e))?;
+
+    Ok(())
+}
+
 pub fn list_sessions() -> Result<Vec<ClaudeSession>, String> {
     let status_dir = get_status_dir().ok_or("Could not determine home directory")?;
 
@@ -30,18 +76,29 @@ pub fn list_sessions() -> Result<Vec<ClaudeSession>, String> {
         return Ok(Vec::new());
     }
 
+    // Read session names from separate file
+    let names = read_session_names();
+
     let mut sessions: Vec<ClaudeSession> = Vec::new();
 
     let entries = fs::read_dir(&status_dir).map_err(|e| format!("Failed to read status directory: {}", e))?;
 
     for entry in entries.flatten() {
         let path = entry.path();
-        if path.extension().map_or(false, |ext| ext == "json") {
-            if let Ok(contents) = fs::read_to_string(&path) {
-                if let Ok(mut session) = serde_json::from_str::<ClaudeSession>(&contents) {
-                    session.raw_json = contents;
-                    sessions.push(session);
+        // Skip non-JSON files and special files (names.json, hooks_backup.json)
+        let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        if !filename.ends_with(".json") || filename == "names.json" || filename == "hooks_backup.json" {
+            continue;
+        }
+
+        if let Ok(contents) = fs::read_to_string(&path) {
+            if let Ok(mut session) = serde_json::from_str::<ClaudeSession>(&contents) {
+                // Merge name from separate names file
+                if session.name.is_none() {
+                    session.name = names.get(&session.session_id).cloned();
                 }
+                session.raw_json = contents;
+                sessions.push(session);
             }
         }
     }
@@ -60,6 +117,9 @@ pub fn delete_session(session_id: &str) -> Result<(), String> {
         fs::remove_file(&file_path)
             .map_err(|e| format!("Failed to delete session file: {}", e))?;
     }
+
+    // Also remove from names file
+    let _ = remove_session_name(session_id);
 
     Ok(())
 }
@@ -88,8 +148,14 @@ fn generate_woodeye_hooks() -> Value {
     };
 
     let cleanup_cmd = format!(
-        r#"input=$(cat); sid=$(echo "$input" | jq -r '.session_id'); [ -n "$sid" ] && rm -f {}/{}.json"#,
-        status_dir, "$sid"
+        r#"input=$(cat); sid=$(echo "$input" | jq -r '.session_id'); if [ -n "$sid" ]; then rm -f {0}/"$sid".json; nf="{0}/names.json"; if [ -f "$nf" ]; then jq --arg s "$sid" 'del(.[$s])' "$nf" > "$nf.tmp" && mv "$nf.tmp" "$nf"; fi; fi"#,
+        status_dir
+    );
+
+    // Command to extract session name from first user prompt and store in separate names.json
+    let name_cmd = format!(
+        r#"input=$(cat); sid=$(echo "$input" | jq -r '.session_id'); prompt=$(echo "$input" | jq -r '.prompt // empty'); nf="{0}/names.json"; if [ -n "$sid" ] && [ -n "$prompt" ]; then if [ -f "$nf" ]; then ex=$(jq -r --arg s "$sid" '.[$s] // empty' "$nf" 2>/dev/null); else ex=""; fi; if [ -z "$ex" ]; then name=$(printf '%s' "$prompt" | head -c 50 | sed 's/[[:space:]][^[:space:]]*$//'); if [ -f "$nf" ]; then jq --arg s "$sid" --arg n "$name" '. + {{($s): $n}}' "$nf" > "$nf.tmp" && mv "$nf.tmp" "$nf"; else echo "{{\"$sid\":\"$name\"}}" > "$nf"; fi; fi; fi"#,
+        status_dir
     );
 
     json!({
@@ -128,6 +194,12 @@ fn generate_woodeye_hooks() -> Value {
         "Stop": [{
             "hooks": [{
                 "command": base_cmd("idle"),
+                "type": "command"
+            }]
+        }],
+        "UserPromptSubmit": [{
+            "hooks": [{
+                "command": name_cmd,
                 "type": "command"
             }]
         }]

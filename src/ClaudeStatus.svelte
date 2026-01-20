@@ -222,7 +222,9 @@
           <div class="session-indicator" style="background: {getStateColor(session.state)}"></div>
           <div class="session-content">
             <div class="session-header">
-              <span class="project-name">{getProjectName(session.project_path)}</span>
+              <span class="project-name" title={session.name || getProjectName(session.project_path)}>
+                {session.name || getProjectName(session.project_path)}
+              </span>
               <div class="session-actions">
                 <span class="session-time">{getRelativeTime(session.timestamp)}</span>
                 <button
@@ -250,6 +252,9 @@
               </div>
             </div>
             <div class="session-details">
+              {#if session.name}
+                <span class="session-project">{getProjectName(session.project_path)}</span>
+              {/if}
               <span class="session-id" title={session.session_id}>{truncateSessionId(session.session_id)}</span>
               <span class="session-state" style="color: {getStateColor(session.state)}">{getStateLabel(session.state)}</span>
             </div>
@@ -518,6 +523,11 @@
     gap: var(--space-md);
     margin-bottom: 4px;
     font-size: 0.8rem;
+  }
+
+  .session-project {
+    font-weight: 500;
+    color: var(--color-text);
   }
 
   .session-id {
