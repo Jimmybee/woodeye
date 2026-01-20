@@ -6,6 +6,39 @@
 
   let terminalMenuOpen = $state(false);
 
+  // Tooltip positioning
+  type TooltipPosition = { align: 'center' | 'left' | 'right' };
+  let tooltipPositions = $state<Record<string, TooltipPosition>>({
+    terminal: { align: 'center' },
+    agent: { align: 'center' },
+    refresh: { align: 'center' }
+  });
+
+  function handleTooltipEnter(event: MouseEvent, tooltipId: string) {
+    const button = event.currentTarget as HTMLElement;
+    const tooltip = button.querySelector('.tooltip') as HTMLElement;
+    if (!tooltip) return;
+
+    const buttonRect = button.getBoundingClientRect();
+    const tooltipWidth = tooltip.offsetWidth;
+    const viewportWidth = window.innerWidth;
+
+    // Calculate where tooltip center would be
+    const tooltipCenter = buttonRect.left + buttonRect.width / 2;
+    const tooltipLeft = tooltipCenter - tooltipWidth / 2;
+    const tooltipRight = tooltipCenter + tooltipWidth / 2;
+
+    const padding = 8; // Minimum distance from viewport edge
+
+    if (tooltipLeft < padding) {
+      tooltipPositions[tooltipId] = { align: 'left' };
+    } else if (tooltipRight > viewportWidth - padding) {
+      tooltipPositions[tooltipId] = { align: 'right' };
+    } else {
+      tooltipPositions[tooltipId] = { align: 'center' };
+    }
+  }
+
   function getFolderName(path: string): string {
     if (!path) return "";
     const segments = path.replace(/\/$/, "").split("/");
@@ -126,13 +159,14 @@
       <button
         class="terminal-btn"
         onclick={toggleTerminalMenu}
+        onmouseenter={(e) => handleTooltipEnter(e, 'terminal')}
         disabled={!selectedWorktree}
-        title="Open in terminal"
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="4 17 10 11 4 5"/>
           <line x1="12" y1="19" x2="20" y2="19"/>
         </svg>
+        <span class="tooltip tooltip-{tooltipPositions.terminal.align}">Open in terminal</span>
       </button>
       {#if terminalMenuOpen}
         <div class="terminal-menu">
@@ -151,26 +185,28 @@
     <button
       class="agent-btn"
       onclick={handleOpenAgent}
+      onmouseenter={(e) => handleTooltipEnter(e, 'agent')}
       disabled={!selectedWorktree}
-      title="Open Claude agent"
     >
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <circle cx="12" cy="8" r="4"/>
         <path d="M6 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/>
         <path d="M12 4V2m-4 3L7 3m10 2l1-2"/>
       </svg>
+      <span class="tooltip tooltip-{tooltipPositions.agent.align}">Open Claude agent</span>
     </button>
     <button
       class="refresh-btn"
       class:has-changes={hasExternalChanges}
       onclick={onRefresh}
+      onmouseenter={(e) => handleTooltipEnter(e, 'refresh')}
       disabled={refreshing || loading || worktrees.length === 0}
-      title={hasExternalChanges ? "Changes detected - click to refresh" : "Refresh"}
     >
       <svg class:spinning={refreshing} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M21 12a9 9 0 1 1-9-9"/>
         <path d="M21 3v9h-9"/>
       </svg>
+      <span class="tooltip tooltip-{tooltipPositions.refresh.align}">{hasExternalChanges ? "Changes detected - click to refresh" : "Refresh"}</span>
     </button>
   </div>
 </header>
@@ -396,5 +432,101 @@
     to {
       transform: rotate(360deg);
     }
+  }
+
+  /* Custom Tooltips */
+  .terminal-btn,
+  .agent-btn,
+  .refresh-btn {
+    position: relative;
+  }
+
+  .tooltip {
+    position: absolute;
+    top: calc(100% + 10px);
+    left: 50%;
+    transform: translateX(-50%);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--color-bg-card);
+    color: var(--color-text);
+    font-size: 0.75rem;
+    font-weight: 500;
+    white-space: nowrap;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.15s ease, visibility 0.15s ease;
+    pointer-events: none;
+    z-index: 200;
+  }
+
+  /* Triangle arrow - border (outer) */
+  .tooltip::before {
+    content: "";
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 8px solid transparent;
+    border-bottom-color: var(--color-border);
+  }
+
+  /* Triangle arrow - fill (inner) */
+  .tooltip::after {
+    content: "";
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 7px solid transparent;
+    border-bottom-color: var(--color-bg-card);
+    margin-bottom: -1px;
+  }
+
+  /* Center aligned (default) */
+  .tooltip-center {
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .tooltip-center::before,
+  .tooltip-center::after {
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  /* Left aligned (when tooltip would overflow right edge) */
+  .tooltip-left {
+    left: 0;
+    transform: translateX(0);
+  }
+
+  .tooltip-left::before,
+  .tooltip-left::after {
+    left: 18px;
+    transform: translateX(0);
+  }
+
+  /* Right aligned (when tooltip would overflow left edge) */
+  .tooltip-right {
+    left: auto;
+    right: 0;
+    transform: translateX(0);
+  }
+
+  .tooltip-right::before,
+  .tooltip-right::after {
+    left: auto;
+    right: 12px;
+    transform: translateX(0);
+  }
+
+  .terminal-btn:hover:not(:disabled) .tooltip,
+  .agent-btn:hover:not(:disabled) .tooltip,
+  .refresh-btn:hover:not(:disabled) .tooltip {
+    opacity: 1;
+    visibility: visible;
   }
 </style>
