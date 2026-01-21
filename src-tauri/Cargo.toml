@@ -1,6 +1,6 @@
 [package]
 name = "woodeye"
-version = "0.4.0"
+version = "0.5.0"
 description = "Git Worktree Status Viewer"
 authors = ["you"]
 edition = "2021"
