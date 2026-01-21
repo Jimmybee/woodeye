@@ -142,19 +142,21 @@ fn generate_woodeye_hooks() -> Value {
 
     let base_cmd = |state: &str| -> String {
         format!(
-            r#"input=$(cat); sid=$(echo "$input" | jq -r '.session_id'); [ -n "$CLAUDE_PROJECT_DIR" ] && [ -n "$sid" ] && mkdir -p {} && echo "{{\"project_path\":\"$CLAUDE_PROJECT_DIR\",\"session_id\":\"$sid\",\"state\":\"{}\",\"timestamp\":$(date +%s)}}" > {}/{{}}.json"#,
+            r#"[ -n "$WOODEYE_HOOK" ] && exit 0; input=$(cat); sid=$(echo "$input" | jq -r '.session_id'); [ -n "$CLAUDE_PROJECT_DIR" ] && [ -n "$sid" ] && mkdir -p {} && echo "{{\"project_path\":\"$CLAUDE_PROJECT_DIR\",\"session_id\":\"$sid\",\"state\":\"{}\",\"timestamp\":$(date +%s)}}" > {}/{{}}.json"#,
             status_dir, state, status_dir
         ).replace("{}", "$sid")
     };
 
     let cleanup_cmd = format!(
-        r#"input=$(cat); sid=$(echo "$input" | jq -r '.session_id'); if [ -n "$sid" ]; then rm -f {0}/"$sid".json; nf="{0}/names.json"; if [ -f "$nf" ]; then jq --arg s "$sid" 'del(.[$s])' "$nf" > "$nf.tmp" && mv "$nf.tmp" "$nf"; fi; fi"#,
+        r#"[ -n "$WOODEYE_HOOK" ] && exit 0; input=$(cat); sid=$(echo "$input" | jq -r '.session_id'); if [ -n "$sid" ]; then rm -f {0}/"$sid".json; nf="{0}/names.json"; if [ -f "$nf" ]; then jq --arg s "$sid" 'del(.[$s])' "$nf" > "$nf.tmp" && mv "$nf.tmp" "$nf"; fi; fi"#,
         status_dir
     );
 
-    // Command to extract session name from first user prompt and store in separate names.json
+    // Command to extract session name from first user prompt using Claude CLI for smart naming
+    // Uses git branch name + prompt to generate a concise session title
+    // Runs async (backgrounded) with timeout to avoid blocking the prompt
     let name_cmd = format!(
-        r#"input=$(cat); sid=$(echo "$input" | jq -r '.session_id'); prompt=$(echo "$input" | jq -r '.prompt // empty'); nf="{0}/names.json"; if [ -n "$sid" ] && [ -n "$prompt" ]; then if [ -f "$nf" ]; then ex=$(jq -r --arg s "$sid" '.[$s] // empty' "$nf" 2>/dev/null); else ex=""; fi; if [ -z "$ex" ]; then name=$(printf '%s' "$prompt" | head -c 50 | sed 's/[[:space:]][^[:space:]]*$//'); if [ -f "$nf" ]; then jq --arg s "$sid" --arg n "$name" '. + {{($s): $n}}' "$nf" > "$nf.tmp" && mv "$nf.tmp" "$nf"; else echo "{{\"$sid\":\"$name\"}}" > "$nf"; fi; fi; fi"#,
+        r#"input=$(cat); (sid=$(echo "$input" | jq -r '.session_id'); prompt=$(echo "$input" | jq -r '.prompt // empty'); nf="{0}/names.json"; if [ -n "$sid" ] && [ -n "$prompt" ]; then if [ -f "$nf" ]; then ex=$(jq -r --arg s "$sid" '.[$s] // empty' "$nf" 2>/dev/null); else ex=""; fi; if [ -z "$ex" ]; then branch=""; if [ -n "$CLAUDE_PROJECT_DIR" ] && [ -d "$CLAUDE_PROJECT_DIR/.git" ]; then branch=$(git -C "$CLAUDE_PROJECT_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null); fi; context="User prompt: $prompt"; if [ -n "$branch" ]; then context="Git branch: $branch\n$context"; fi; name=$(WOODEYE_HOOK=1 timeout 10 claude -p "Create a brief 3-5 word title for this coding session. Be specific about the task. No quotes, colons, or extra punctuation. Just output the title:\n$context" --model sonnet 2>/dev/null | tr -d '\n' | head -c 50); if [ -z "$name" ]; then name=$(printf '%s' "$prompt" | head -c 50 | sed 's/[[:space:]][^[:space:]]*$//'); fi; if [ -f "$nf" ]; then jq --arg s "$sid" --arg n "$name" '. + {{($s): $n}}' "$nf" > "$nf.tmp" && mv "$nf.tmp" "$nf"; else echo "{{\"$sid\":\"$name\"}}" > "$nf"; fi; fi; fi) &"#,
         status_dir
     );
 
