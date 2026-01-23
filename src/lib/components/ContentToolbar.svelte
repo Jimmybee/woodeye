@@ -11,6 +11,7 @@
   let tooltipPositions = $state<Record<string, TooltipPosition>>({
     terminal: { align: "center" },
     agent: { align: "center" },
+    script: { align: "center" },
     refresh: { align: "center" },
   });
 
@@ -86,12 +87,14 @@
     loading: boolean;
     refreshing: boolean;
     hasExternalChanges: boolean;
+    hasCustomScript: boolean;
     onLoadRepo: (path: string) => void;
     onSelectWorktree: (worktree: Worktree) => void;
     onCreateWorktree: () => void;
     onDeleteWorktree: (worktree: Worktree) => void;
     onPruneWorktrees: () => void;
     onRefresh: () => void;
+    onRunScript: () => void;
   }
 
   let {
@@ -101,12 +104,14 @@
     loading,
     refreshing,
     hasExternalChanges,
+    hasCustomScript,
     onLoadRepo,
     onSelectWorktree,
     onCreateWorktree,
     onDeleteWorktree,
     onPruneWorktrees,
     onRefresh,
+    onRunScript,
   }: Props = $props();
 
   async function handleBrowse() {
@@ -281,6 +286,20 @@
       </svg>
     </button>
     <button
+      class="script-btn"
+      onclick={onRunScript}
+      onmouseenter={(e) => handleTooltipEnter(e, "script")}
+      disabled={!selectedWorktree || !hasCustomScript}
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <path d="M10 12l-2 2 2 2"/>
+        <path d="M14 12l2 2-2 2"/>
+      </svg>
+      <span class="tooltip tooltip-{tooltipPositions.script.align}">Run custom script</span>
+    </button>
+    <button
       class="refresh-btn"
       class:has-changes={hasExternalChanges}
       onclick={onRefresh}
@@ -415,7 +434,8 @@
 
   .refresh-btn,
   .agent-btn,
-  .status-btn {
+  .status-btn,
+  .script-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -433,13 +453,15 @@
   }
 
   .agent-btn:hover:not(:disabled),
-  .status-btn:hover:not(:disabled) {
+  .status-btn:hover:not(:disabled),
+  .script-btn:hover:not(:disabled) {
     border-color: var(--color-primary);
     color: var(--color-primary);
   }
 
   .agent-btn:disabled,
-  .status-btn:disabled {
+  .status-btn:disabled,
+  .script-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }
@@ -545,6 +567,7 @@
   /* Custom Tooltips */
   .terminal-btn,
   .agent-btn,
+  .script-btn,
   .refresh-btn {
     position: relative;
   }
@@ -635,6 +658,7 @@
 
   .terminal-btn:hover:not(:disabled) .tooltip,
   .agent-btn:hover:not(:disabled) .tooltip,
+  .script-btn:hover:not(:disabled) .tooltip,
   .refresh-btn:hover:not(:disabled) .tooltip {
     opacity: 1;
     visibility: visible;

@@ -1,5 +1,6 @@
 mod claude_status;
 mod commands;
+mod config;
 mod git;
 mod menu;
 mod types;
@@ -34,7 +35,11 @@ pub fn run() {
             commands::remove_claude_hooks,
             commands::apply_claude_hooks,
             commands::set_claude_status_always_on_top,
-            commands::focus_terminal_for_path
+            commands::focus_terminal_for_path,
+            commands::get_config,
+            commands::set_custom_script_path,
+            commands::run_custom_script,
+            commands::open_config_file
         ])
         .setup(|app| {
             if let Err(e) = menu::build_menu(app) {

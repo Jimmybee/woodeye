@@ -1,5 +1,5 @@
 use tauri::{
-    menu::{CheckMenuItemBuilder, MenuBuilder, SubmenuBuilder},
+    menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder, SubmenuBuilder},
     App, AppHandle, Emitter,
 };
 
@@ -26,7 +26,17 @@ pub fn build_menu(app: &App) -> Result<(), Box<dyn std::error::Error>> {
         .item(&theme_submenu)
         .build()?;
 
-    let menu = MenuBuilder::new(app).item(&view_menu).build()?;
+    let open_config = MenuItemBuilder::with_id("open_config", "Open Config File...")
+        .build(app)?;
+
+    let settings_menu = SubmenuBuilder::new(app, "Settings")
+        .item(&open_config)
+        .build()?;
+
+    let menu = MenuBuilder::new(app)
+        .item(&view_menu)
+        .item(&settings_menu)
+        .build()?;
 
     app.set_menu(menu)?;
 
@@ -76,6 +86,13 @@ pub fn setup_menu_events(app: &App) {
                 if let Err(e) = app_handle.emit("menu-theme-changed", theme) {
                     eprintln!("Failed to emit theme event: {}", e);
                 }
+            }
+            "open_config" => {
+                tauri::async_runtime::spawn(async move {
+                    if let Err(e) = crate::commands::open_config_file().await {
+                        eprintln!("Failed to open config file: {}", e);
+                    }
+                });
             }
             _ => {}
         }

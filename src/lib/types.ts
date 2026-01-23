@@ -116,3 +116,15 @@ export interface HooksState {
   hooks_enabled: boolean;
   hooks_json: string | null;
 }
+
+// Woodeye config types
+export interface WoodeyeConfig {
+  custom_script_path: string | null;
+}
+
+export interface ScriptResult {
+  success: boolean;
+  stdout: string;
+  stderr: string;
+  exit_code: number | null;
+}

@@ -1,4 +1,5 @@
 use crate::claude_status::{self, ClaudeSession, HooksState};
+use crate::config::{self, WoodeyeConfig};
 use crate::git;
 use crate::menu;
 use crate::types::{
@@ -336,4 +337,101 @@ end tell"#,
     }
 
     Ok(false)
+}
+
+#[derive(serde::Serialize)]
+pub struct ScriptResult {
+    pub success: bool,
+    pub stdout: String,
+    pub stderr: String,
+    pub exit_code: Option<i32>,
+}
+
+#[tauri::command]
+pub async fn open_config_file() -> Result<(), String> {
+    use std::process::Command;
+
+    let config_path = config::get_config_path().ok_or("Could not determine config path")?;
+
+    // Create parent directories and file with default content if it doesn't exist
+    if !config_path.exists() {
+        if let Some(parent) = config_path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create config directory: {}", e))?;
+        }
+
+        let default_config = WoodeyeConfig::default();
+        let content = serde_json::to_string_pretty(&default_config)
+            .map_err(|e| format!("Failed to serialize default config: {}", e))?;
+
+        std::fs::write(&config_path, content)
+            .map_err(|e| format!("Failed to create config file: {}", e))?;
+    }
+
+    // Open in system default editor
+    Command::new("open")
+        .arg(&config_path)
+        .spawn()
+        .map_err(|e| format!("Failed to open config file: {}", e))?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_config() -> Result<WoodeyeConfig, String> {
+    spawn_blocking(config::load_config)
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn set_custom_script_path(path: Option<String>) -> Result<(), String> {
+    spawn_blocking(move || {
+        let mut config = config::load_config()?;
+        config.custom_script_path = path;
+        config::save_config(&config)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn run_custom_script(
+    branch_name: String,
+    worktree_path: String,
+) -> Result<ScriptResult, String> {
+    use std::process::Command;
+
+    // Load config to get script path
+    let config = config::load_config()?;
+    let script_path = config
+        .custom_script_path
+        .ok_or("No custom script configured")?;
+
+    // Expand ~ in path
+    let expanded_path = config::expand_tilde(&script_path);
+
+    // Verify script exists
+    if !std::path::Path::new(&expanded_path).exists() {
+        return Err(format!("Script not found: {}", expanded_path));
+    }
+
+    // Run the script with branch name as argument in the worktree directory
+    let output = Command::new(&expanded_path)
+        .arg(&branch_name)
+        .current_dir(&worktree_path)
+        .output()
+        .map_err(|e| format!("Failed to execute script: {}", e))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    let exit_code = output.status.code();
+    let success = output.status.success();
+
+    Ok(ScriptResult {
+        success,
+        stdout,
+        stderr,
+        exit_code,
+    })
 }

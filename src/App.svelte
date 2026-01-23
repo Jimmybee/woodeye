@@ -7,6 +7,7 @@
   import CommitList from "./lib/components/CommitList.svelte";
   import CommitDiffView from "./lib/components/CommitDiffView.svelte";
   import CreateWorktreeDialog from "./lib/components/CreateWorktreeDialog.svelte";
+  import RunScriptDialog from "./lib/components/RunScriptDialog.svelte";
   import type {
     Worktree,
     CommitInfo,
@@ -16,6 +17,7 @@
     BranchInfo,
     CreateWorktreeOptions,
     PruneResult,
+    WoodeyeConfig,
   } from "./lib/types";
   import { getLastRepoPath, saveLastRepoPath, getTheme, setTheme, type Theme } from "./lib/store";
 
@@ -46,11 +48,18 @@
 
   // Dialog state
   let showCreateDialog = $state(false);
+  let showRunScriptDialog = $state(false);
   let branches: BranchInfo[] = $state([]);
+  let woodeyeConfig = $state<WoodeyeConfig | null>(null);
 
   // Get main worktree path for the dialog
   let mainWorktreePath = $derived(
     worktrees.find((w) => w.is_main)?.path ?? ""
+  );
+
+  // Check if custom script is configured
+  let hasCustomScript = $derived(
+    woodeyeConfig !== null && !!woodeyeConfig.custom_script_path
   );
 
   async function loadWorktrees(path: string) {
@@ -419,6 +428,14 @@
     invoke("set_theme_menu_state", { theme });
   }
 
+  async function loadWoodeyeConfig() {
+    try {
+      woodeyeConfig = await invoke<WoodeyeConfig>("get_config");
+    } catch (e) {
+      console.error("Failed to load config:", e);
+    }
+  }
+
   onMount(() => {
     listen("worktree-changed", () => {
       // Clear the working diff cache since files have changed
@@ -450,6 +467,9 @@
     const savedTheme = getTheme();
     applyTheme(savedTheme);
 
+    // Load woodeye config
+    loadWoodeyeConfig();
+
     const lastRepo = getLastRepoPath();
     if (lastRepo) {
       repoPath = lastRepo;
@@ -478,12 +498,14 @@
     {loading}
     {refreshing}
     {hasExternalChanges}
+    {hasCustomScript}
     onLoadRepo={loadWorktrees}
     onSelectWorktree={selectWorktree}
     onCreateWorktree={openCreateDialog}
     onDeleteWorktree={handleDeleteWorktree}
     onPruneWorktrees={handlePruneWorktrees}
     onRefresh={refreshAll}
+    onRunScript={() => showRunScriptDialog = true}
   />
 
   <main class="main-content">
@@ -544,6 +566,14 @@
     mainWorktreePath={mainWorktreePath}
     onClose={() => (showCreateDialog = false)}
     onCreate={handleCreateWorktree}
+  />
+{/if}
+
+{#if showRunScriptDialog && selectedWorktree}
+  <RunScriptDialog
+    worktreePath={selectedWorktree.path}
+    onClose={() => (showRunScriptDialog = false)}
+    onSuccess={refreshAll}
   />
 {/if}
 
